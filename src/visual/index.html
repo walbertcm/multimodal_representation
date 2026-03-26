@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sprint 4 - Scatterplot Visuo-Háptico Configurável</title>
+  <title>Configurable Visuo-Haptic Scatterplot</title>
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <style>
     :root {
@@ -218,69 +218,108 @@
       .viz-wrap { grid-template-columns: 1fr; }
       .topbar { grid-template-columns: 1fr; }
     }
+ 
+input[type="file"]::file-selector-button:hover {
+  background-color: #eef4ff;
+}
+
+#csvFile {
+  display: none;
+}
+
+.file-upload-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.custom-file-btn {
+  display: inline-block;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f5f8ff;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.custom-file-btn:hover {
+  background: #eef4ff;
+}
+
+.file-name {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+
   </style>
 </head>
 <body>
   <div class="app">
     <aside class="panel">
-      <h1>Sprint 4 configurável</h1>
-      <div class="small">Scatterplot multimodal com mapeamento visual e háptico configuráveis, usando WebSocket para acionar o ESP32.</div>
-
-      <div class="section">
-        <h2>Conexão WebSocket</h2>
+      <h1>Visuo-Haptic Data Encoding System</h1>
+      <div class="small">Multimodal scatterplot with configurable visual and haptic mappings, using WebSocket to drive an haptic rendering device.</div>
+<div class="section">
+        <h2>WebSocket Connection</h2>
         <div class="grid1">
           <div>
-            <label for="wsUrl">URL do ESP32</label>
+            <label for="wsUrl">Device URL (ws://ip:port)</label>
             <input id="wsUrl" type="text" value="ws://192.168.1.50:81" />
           </div>
           <div class="grid2">
-            <button id="connectBtn" class="primary">Conectar</button>
-            <button id="disconnectBtn">Desconectar</button>
+            <button id="connectBtn" class="primary">Connect</button>
+            <button id="disconnectBtn">Disconnect</button>
           </div>
           <div class="grid2">
             <button id="pingBtn">Ping</button>
             <button id="stopBtn">Stop</button>
           </div>
-          <div class="status"><span id="statusDot" class="dot disconnected"></span><span id="statusText">Desconectado</span></div>
+          <div class="status"><span id="statusDot" class="dot disconnected"></span><span id="statusText">Disconnected</span></div>
         </div>
       </div>
 
       <div class="section">
-        <h2>Dados</h2>
+        <h2>Data</h2>
         <div class="grid1">
-          <div>
-            <label for="csvFile">Arquivo CSV</label>
-            <input id="csvFile" type="file" accept=".csv" />
-          </div>
-          <button id="loadDefaultBtn" class="secondary">Carregar CSV padrão</button>
-          <div class="small">O CSV padrão é <code>sprint4_data.csv</code>. Também é possível carregar outro arquivo local.</div>
+          <label for="csvFile">Upload CSV File</label>
+            <div class="file-upload-wrap">
+              <label for="csvFile" class="custom-file-btn">Choose CSV File</label>
+              <span id="fileName" class="file-name">No file selected</span>
+              <input id="csvFile" type="file" accept=".csv" />
+            </div>
+
+          <button id="loadDefaultBtn" class="secondary">Load default CSV</button>
+          <div class="small">The default CSV is <code>default_data.csv</code>. You can also load another local file.</div>
         </div>
       </div>
 
       <div class="section">
-        <h2>Mapeamento visual</h2>
+        <h2>Visual Mapping</h2>
         <div class="grid2">
-          <div><label for="xSelect">Eixo X</label><select id="xSelect"></select></div>
-          <div><label for="ySelect">Eixo Y</label><select id="ySelect"></select></div>
+          <div><label for="xSelect">X Axis</label><select id="xSelect"></select></div>
+          <div><label for="ySelect">Y Axis</label><select id="ySelect"></select></div>
         </div>
         <div class="grid2" style="margin-top:10px;">
-          <div><label for="colorSelect">Cor</label><select id="colorSelect"></select></div>
-          <div><label for="sizeSelect">Tamanho</label><select id="sizeSelect"></select></div>
+          <div><label for="colorSelect">Color</label><select id="colorSelect"></select></div>
+          <div><label for="sizeSelect">Size</label><select id="sizeSelect"></select></div>
         </div>
-        <div class="small" style="margin-top:8px;">Cor aceita variável numérica ou categórica. Tamanho usa apenas variável numérica.</div>
+        <div class="small" style="margin-top:8px;">Color supports both categorical and numerical variables. Size supports only numerical variables.</div>
       </div>
 
       <div class="section">
-        <h2>Mapeamento háptico</h2>
+        <h2>Haptic Mapping</h2>
         <div class="grid1">
-          <div><label for="hapticVarSelect">Variável háptica</label><select id="hapticVarSelect"></select></div>
+          <div><label for="hapticVarSelect">Haptic Variable</label><select id="hapticVarSelect"></select></div>
           <div class="grid2">
-            <div><label for="hapticEncodingSelect">Codificação</label>
+            <div><label for="hapticEncodingSelect">Vibrotactile Scale</label>
               <select id="hapticEncodingSelect">
-                <option value="duration">Duração</option>
+                <option value="duration">Duration</option>
               </select>
             </div>
-            <div><label for="levelsSelect">Níveis</label>
+            <div><label for="levelsSelect">Number of Distinct Stimuli</label>
               <select id="levelsSelect">
                 <option value="4">4</option>
                 <option value="6">6</option>
@@ -288,32 +327,32 @@
               </select>
             </div>
           </div>
-          <div><label for="methodSelect">Método de mapeamento dos dados</label>
+          <div><label for="methodSelect">Mapping Strategy</label>
             <select id="methodSelect">
-              <option value="uniform">Discretização uniforme</option>
-              <option value="quantile">Quantis</option>
-              <option value="geometric">Escala geométrica</option>
-              <option value="zscore">Faixas por z-score</option>
-              <option value="manual">Limiares manuais</option>
-              <option value="meanSplit">Quebras pela média</option>
+              <option value="geometric" selected>Geometric Scaling</option>
+              <option value="uniform">Equal Interval Binning</option>
+              <option value="quantile">Quantile</option>
+              <option value="zscore">Z-score Classification</option>
+              <option value="manual">User-defined Limits</option>
+              <option value="meanSplit">Mean Split</option>
             </select>
           </div>
           <div>
-            <label for="manualThresholds">Limiares manuais (quando aplicável)</label>
-            <input id="manualThresholds" type="text" placeholder="Ex.: 100,300,700" />
+            <label for="manualThresholds">User-defined Limits (when applicable)</label>
+            <input id="manualThresholds" type="text" placeholder="E.g.: 100,300,700" />
           </div>
-          <button id="applyBtn" class="primary">Aplicar mapeamentos</button>
+          <button id="applyBtn" class="primary">Apply Mappings</button>
         </div>
         <div class="small" style="margin-top:8px;">
-          Métodos sugeridos: uniforme, quantil e geométrico. Os modos z-score, média e limiares manuais oferecem alternativas analíticas para explorar a estrutura dos dados.
+          Suggested methods: equal interval, quantile, and logarithmic. Z-score, mean split, and user-defined thresholds offer analytical alternatives to explore data structure.
         </div>
       </div>
 
       <div class="section">
-        <h2>Envio ao ESP32</h2>
+        <h2>Send to ESP32</h2>
         <div class="grid1">
-          <div><label><input id="sendOnClickChk" type="checkbox" checked /> Enviar comando ao clicar no ponto</label></div>
-          <div><label><input id="ackInLogChk" type="checkbox" checked /> Registrar ACK/status no log</label></div>
+          <div><label><input id="sendOnClickChk" type="checkbox" checked /> Send command when clicking a point</label></div>
+          <div><label><input id="ackInLogChk" type="checkbox" checked /> Log ACK/status</label></div>
         </div>
       </div>
     </aside>
@@ -321,12 +360,12 @@
     <main class="main">
       <div class="topbar">
         <div>
-          <div style="font-weight:700; font-size:18px;">Scatterplot visuo-háptico configurável</div>
-          <div class="small">Clique em um ponto para enviar a codificação háptica correspondente ao ESP32.</div>
+          <div style="font-weight:700; font-size:18px;">Configurable Visuo-Haptic Scatterplot</div>
+          <div class="small">Click a point to send the corresponding haptic encoding to the ESP32.</div>
         </div>
-        <span class="chip" id="datasetInfo">0 registros</span>
-        <button id="exportLogBtn">Exportar log CSV</button>
-        <button id="clearLogBtn">Limpar log</button>
+        <span class="chip" id="datasetInfo">0 records</span>
+        <button id="exportLogBtn">Export Interaction Log</button>
+        <button id="clearLogBtn">Clear log</button>
       </div>
 
       <div class="viz-wrap">
@@ -335,34 +374,34 @@
         </div>
         <div class="side-card">
           <div>
-            <h3>Ponto selecionado</h3>
+            <h3>Selected Point</h3>
             <div id="selectedDetails" class="details-list">
-              <div class="detail-row"><span>Nenhum ponto selecionado</span><span>—</span></div>
+              <div class="detail-row"><span>No point selected</span><span>—</span></div>
             </div>
           </div>
           <div>
-            <h3>Legenda háptica</h3>
+            <h3>Haptic Legend</h3>
             <div id="hapticLegend" class="legend-list"></div>
           </div>
           <div>
-            <h3>Resumo do mapeamento</h3>
+            <h3>Mapping Summary</h3>
             <div id="mappingSummary" class="small"></div>
           </div>
         </div>
       </div>
 
       <div>
-        <h3>Log de interações</h3>
+        <h3>Interaction Log</h3>
         <div class="log-box">
           <table>
             <thead>
               <tr>
-                <th>Hora</th>
-                <th>Ponto</th>
+                <th>Time</th>
+                <th>Point</th>
                 <th>Visual</th>
-                <th>Háptico</th>
-                <th>Nível</th>
-                <th>Comando</th>
+                <th>Haptic</th>
+                <th>Level</th>
+                <th>Command</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -425,20 +464,195 @@
       datasetInfo: document.getElementById('datasetInfo')
     };
 
+    let currentLanguage = 'en';
+
+    const i18n = {
+      en: {
+        pageTitle: 'Configurable Visuo-Haptic Scatterplot',
+        panelTitle: 'Visuo-Haptic Data Encoding System',
+        panelSubtitle: 'Multimodal scatterplot with configurable visual and haptic mappings, using WebSocket to drive an haptic rendering device.',
+        wsSection: 'WebSocket Connection',
+        esp32Url: 'Device URL (ws://ip:port)',
+        connect: 'Connect',
+        disconnect: 'Disconnect',
+        stop: 'Stop',
+        disconnected: 'Disconnected',
+        connecting: 'Connecting...',
+        connected: 'Connected',
+        connectionError: 'Connection error',
+        failedConnect: 'Failed to connect',
+        dataSection: 'Data',
+        csvFile: 'Upload CSV File',
+        loadDefault: 'Load default CSV',
+        defaultCsvHelp: 'The default CSV is default_data.csv. You can also load another local file.',
+        visualSection: 'Visual Mapping',
+        xAxis: 'X Axis',
+        yAxis: 'Y Axis',
+        color: 'Color',
+        size: 'Size',
+        visualHelp: 'Color supports both categorical and numerical variables. Size supports only numerical variables.',
+        hapticSection: 'Haptic Mapping',
+        hapticVariable: 'Haptic Variable',
+        encoding: 'Haptic Scale',
+        duration: 'Duration',
+        levels: 'Number of Distinct Stimuli',
+        dataMethod: 'Mapping Strategy',
+        uniform: 'Equal Interval Binning',
+        quantile: 'Quantile Binning',
+        geometric: 'Geometric Scaling',
+        zscore: 'Z-score Classification',
+        manual: 'User-defined Limits',
+        meanSplit: 'Mean Split',
+        manualThresholds: 'User-defined Limits (when applicable)',
+        manualPlaceholder: 'E.g.: 100,300,700',
+        applyMappings: 'Apply Mappings',
+        hapticHelp: ''/*'Suggested methods: equal interval, quantile, and logarithmic. Z-score, mean split, and user-defined thresholds offer analytical alternatives to explore data structure.'*/,
+        sendSection: 'Send to ESP32',
+        sendOnClick: 'Send command when clicking a point',
+        logAck: 'Log ACK/status',
+        mainTitle: 'Configurable Visuo-Haptic Scatterplot',
+        mainSubtitle: 'Click a point to send the corresponding haptic encoding to the ESP32.',
+        records: 'records',
+        exportLog: 'Export Interaction Log',
+        clearLog: 'Clear log',
+        selectedPoint: 'Selected Point',
+        noPoint: 'No point selected',
+        hapticLegend: 'Haptic Legend',
+        mappingSummary: 'Current Mapping Summary',
+        interactionLog: 'Interaction Log',
+        logTime: 'Time',
+        logPoint: 'Point',
+        logVisual: 'Visual',
+        logHaptic: 'Haptic',
+        logLevel: 'Level',
+        logCommand: 'Command',
+        logStatus: 'Status',
+        none: '(none)',
+        fixed: '(fixed)',
+        point: 'Point',
+        identifier: 'identifier',
+        fixedLower: 'fixed',
+        hapticLevel: 'Haptic level',
+        sentPattern: 'sent pattern',
+        to: 'to',
+        visualWord: 'Visual',
+        hapticWord: 'Haptic',
+        variable: 'Variable',
+        vibrotactileScale: 'Vibrotactile Scale',
+        errorApplying: 'Error applying mappings:',
+        manualError: (levels) => `For ${levels} levels, provide ${levels - 1} thresholds.`,
+        heuristicZ: 'Heuristic: creates thresholds between -1.5 and +1.5 SD or distributes them symmetrically.',
+        meanSplitComment: 'Splits the interval around the mean, interpolating below and above the mean.',
+        visualOnly: 'visual only',
+        sent: 'sent',
+        notConnected: 'not connected',
+        ack: 'ACK',
+        message: 'message',
+        received: 'received',
+        scatterplot: 'Scatterplot',
+        pointFallback: (idx) => `Point ${idx}`,
+        axisLabelX: (x) => `X Axis: ${x}`,
+        axisLabelY: (y) => `Y Axis: ${y}`,
+        tooltipLevel: 'Haptic level',
+      }
+    };
+
+    function t(key, ...args) {
+      const value = i18n[currentLanguage][key];
+      return typeof value === 'function' ? value(...args) : value;
+    }
+
+    function localizedStatusKey(text) {
+      const map = {
+        [i18n.en.disconnected]: 'disconnected', [i18n.pt.disconnected]: 'disconnected',
+        [i18n.en.connecting]: 'connecting', [i18n.pt.connecting]: 'connecting',
+        [i18n.en.connected]: 'connected', [i18n.pt.connected]: 'connected',
+        [i18n.en.connectionError]: 'connectionError', [i18n.pt.connectionError]: 'connectionError',
+        [i18n.en.failedConnect]: 'failedConnect', [i18n.pt.failedConnect]: 'failedConnect'
+      };
+      return map[text] || null;
+    }
+
     function setStatus(text, connected = false) {
-      els.statusText.textContent = text;
+      const key = localizedStatusKey(text);
+      els.statusText.textContent = key ? t(key) : text;
       els.statusDot.className = `dot ${connected ? 'connected' : 'disconnected'}`;
+    }
+
+    function applyLanguage() {
+      document.documentElement.lang = 'en';
+      document.title = t('pageTitle');
+      const q = (sel) => document.querySelector(sel);
+      const qa = (sel) => [...document.querySelectorAll(sel)];
+      q('aside.panel > h1').textContent = t('panelTitle');
+      q('aside.panel > .small').textContent = t('panelSubtitle');
+      q('input#wsUrl').previousElementSibling.textContent = t('esp32Url');
+      qa('aside .section h2')[0].textContent = t('wsSection');
+      els.connectBtn.textContent = t('connect');
+      els.disconnectBtn.textContent = t('disconnect');
+      els.stopBtn.textContent = t('stop');
+      qa('aside .section h2')[1].textContent = t('dataSection');
+      q('label[for="csvFile"]').textContent = t('csvFile');
+      els.loadDefaultBtn.textContent = t('loadDefault');
+      qa('aside .section .small')[0].textContent = t('defaultCsvHelp');
+      qa('aside .section h2')[2].textContent = t('visualSection');
+      q('label[for="xSelect"]').textContent = t('xAxis');
+      q('label[for="ySelect"]').textContent = t('yAxis');
+      q('label[for="colorSelect"]').textContent = t('color');
+      q('label[for="sizeSelect"]').textContent = t('size');
+      qa('aside .section .small')[1].textContent = t('visualHelp');
+      qa('aside .section h2')[3].textContent = t('hapticSection');
+      q('label[for="hapticVarSelect"]').textContent = t('hapticVariable');
+      q('label[for="hapticEncodingSelect"]').textContent = t('encoding');
+      q('#hapticEncodingSelect option[value="duration"]').textContent = t('duration');
+      q('label[for="levelsSelect"]').textContent = t('levels');
+      q('label[for="methodSelect"]').textContent = t('dataMethod');
+      q('#methodSelect option[value="uniform"]').textContent = t('uniform');
+      q('#methodSelect option[value="quantile"]').textContent = t('quantile');
+      q('#methodSelect option[value="geometric"]').textContent = t('geometric');
+      q('#methodSelect option[value="zscore"]').textContent = t('zscore');
+      q('#methodSelect option[value="manual"]').textContent = t('manual');
+      q('#methodSelect option[value="meanSplit"]').textContent = t('meanSplit');
+      q('label[for="manualThresholds"]').textContent = t('manualThresholds');
+      els.manualThresholds.placeholder = t('manualPlaceholder');
+      els.applyBtn.textContent = t('applyMappings');
+      qa('aside .section .small')[2].textContent = t('hapticHelp');
+      qa('aside .section h2')[4].textContent = t('sendSection');
+      qa('label:has(#sendOnClickChk)')[0].lastChild.textContent = ' ' + t('sendOnClick');
+      qa('label:has(#ackInLogChk)')[0].lastChild.textContent = ' ' + t('logAck');
+      q('.topbar div[style*="font-weight:700"]').textContent = t('mainTitle');
+      q('.topbar .small').textContent = t('mainSubtitle');
+      els.exportLogBtn.textContent = t('exportLog');
+      els.clearLogBtn.textContent = t('clearLog');
+      q('.side-card h3').textContent = t('selectedPoint');
+      qAllSide = document.querySelectorAll('.side-card h3');
+      qAllSide[1].textContent = t('hapticLegend');
+      qAllSide[2].textContent = t('mappingSummary');
+      q('main .section h2').textContent = t('interactionLog');
+      const ths = qa('.log-box thead th');
+      [t('logTime'), t('logPoint'), t('logVisual'), t('logHaptic'), t('logLevel'), t('logCommand'), t('logStatus')].forEach((v,i)=>ths[i].textContent=v);
+      els.datasetInfo.textContent = `${rawData.length} ${t('records')}`;
+      const current = els.statusText.textContent;
+      const key = localizedStatusKey(current);
+      if (key) els.statusText.textContent = t(key);
+      if (rawData.length) {
+        populateControls(rawData.columns || Object.keys(rawData[0]).filter(k=>!k.startsWith('__')));
+        applyMappings();
+      } else {
+        els.selectedDetails.innerHTML = `<div class="detail-row"><span>${t('noPoint')}</span><span>—</span></div>`;
+      }
+      renderLog();
     }
 
     function connectWebSocket() {
       try {
         if (ws) ws.close();
         ws = new WebSocket(els.wsUrl.value.trim());
-        setStatus('Conectando...', false);
+        setStatus('Connecting...', false);
 
-        ws.onopen = () => setStatus('Conectado', true);
-        ws.onclose = () => setStatus('Desconectado', false);
-        ws.onerror = () => setStatus('Erro na conexão', false);
+        ws.onopen = () => setStatus('Connected', true);
+        ws.onclose = () => setStatus('Disconnected', false);
+        ws.onerror = () => setStatus('Connection error', false);
         ws.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
@@ -447,7 +661,7 @@
               addLog({
                 point: payload.point || 'ESP32',
                 visual: 'ACK',
-                haptic: payload.cmd || payload.status || 'mensagem',
+                haptic: payload.cmd || payload.status || t('message'),
                 level: payload.level ?? '-',
                 command: event.data,
                 status: payload.status || 'ok'
@@ -455,12 +669,12 @@
             }
           } catch {
             if (els.ackInLogChk.checked) {
-              addLog({ point: 'ESP32', visual: 'RAW', haptic: 'mensagem', level: '-', command: event.data, status: 'recebido' });
+              addLog({ point: 'ESP32', visual: 'RAW', haptic: t('message'), level: '-', command: event.data, status: t('received') });
             }
           }
         };
       } catch (err) {
-        setStatus('Falha ao conectar', false);
+        setStatus('Failed to connect', false);
         console.error(err);
       }
     }
@@ -470,7 +684,7 @@
         ws.close();
         ws = null;
       }
-      setStatus('Desconectado', false);
+      setStatus('Disconnected', false);
     }
 
     function sendWS(obj) {
@@ -495,20 +709,20 @@
         numericColumns.forEach(col => { out[col] = +d[col]; });
         return out;
       });
-      els.datasetInfo.textContent = `${rawData.length} registros`;
+      els.datasetInfo.textContent = `${rawData.length} ${t('records')}`;
       populateControls(columns);
       applyMappings();
     }
 
     function populateControls(columns) {
       const numeric = numericColumns;
-      const colorCandidates = ['(nenhuma)', ...columns];
-      const sizeCandidates = ['(fixo)', ...numeric];
+      const colorCandidates = [t('none'), ...columns];
+      const sizeCandidates = [t('fixed'), ...numeric];
 
       fillSelect(els.xSelect, numeric, numeric[0]);
       fillSelect(els.ySelect, numeric, numeric[1] || numeric[0]);
-      fillSelect(els.colorSelect, colorCandidates, categoricalColumns[0] || numeric[2] || '(nenhuma)');
-      fillSelect(els.sizeSelect, sizeCandidates, numeric[2] || '(fixo)');
+      fillSelect(els.colorSelect, colorCandidates, categoricalColumns[0] || numeric[2] || t('none'));
+      fillSelect(els.sizeSelect, sizeCandidates, numeric[2] || t('fixed'));
       fillSelect(els.hapticVarSelect, numeric, numeric[3] || numeric[0]);
     }
 
@@ -523,7 +737,7 @@
       });
     }
 
-    function quantile(sorted, q) {
+    function quantileValue(sorted, q) {
       const pos = (sorted.length - 1) * q;
       const base = Math.floor(pos);
       const rest = pos - base;
@@ -556,7 +770,7 @@
 
       if (method === 'quantile') {
         const edges = [min];
-        for (let i = 1; i < levels; i++) edges.push(quantile(sorted, i / levels));
+        for (let i = 1; i < levels; i++) edges.push(quantileValue(sorted, i / levels));
         edges.push(max);
         for (let i = 0; i < levels; i++) bins.push({ low: edges[i], high: edges[i + 1] });
         return bins;
@@ -577,7 +791,7 @@
       }
 
       if (method === 'zscore') {
-        // Heurística: cria limiares entre -1.5 e +1.5 SD ou distribui simetricamente.
+        // ${t('heuristicZ')}
         const edges = [];
         for (let i = 0; i <= levels; i++) {
           const z = -1.5 + (3.0 * i / levels);
@@ -593,14 +807,14 @@
 
       if (method === 'manual') {
         const thresholds = manualThresholdsText.split(',').map(s => +s.trim()).filter(Number.isFinite).sort((a, b) => a - b);
-        if (thresholds.length !== levels - 1) throw new Error(`Para ${levels} níveis, informe ${levels - 1} limiares.`);
+        if (thresholds.length !== levels - 1) throw new Error(t('manualError', levels));
         const edges = [min, ...thresholds, max];
         for (let i = 0; i < levels; i++) bins.push({ low: edges[i], high: edges[i + 1] });
         return bins;
       }
 
       if (method === 'meanSplit') {
-        // Divide o intervalo em torno da média, interpolando abaixo/acima da média.
+        // ${t('meanSplitComment')}
         const lowerCount = Math.floor(levels / 2);
         const upperCount = levels - lowerCount;
         const lowerStep = (mean - min) / Math.max(lowerCount, 1);
@@ -673,7 +887,7 @@
           if (selectedDatum) renderSelectedDetails(selectedDatum, { xCol, yCol, colorCol, sizeCol, hapticCol });
         }
       } catch (err) {
-        alert(`Erro ao aplicar mapeamentos: ${err.message}`);
+        alert(`${t('errorApplying')} ${err.message}`);
       }
     }
 
@@ -707,11 +921,11 @@
         .call(g => g.selectAll('path').attr('stroke', '#aebdd0'));
 
       svg.append('text').attr('class', 'plot-title').attr('x', width / 2).attr('y', 24).attr('text-anchor', 'middle')
-        .text(`Scatterplot: ${xCol} × ${yCol}`);
+        .text(`${t('scatterplot')}: ${xCol} × ${yCol}`);
       svg.append('text').attr('class', 'axis-label').attr('x', width / 2).attr('y', height - 10).attr('text-anchor', 'middle')
-        .text(`Eixo X: ${xCol}`);
+        .text(t('axisLabelX', xCol));
       svg.append('text').attr('class', 'axis-label').attr('transform', `translate(16,${height / 2}) rotate(-90)`).attr('text-anchor', 'middle')
-        .text(`Eixo Y: ${yCol}`);
+        .text(t('axisLabelY', yCol));
 
       g.selectAll('.point')
         .data(rawData, d => d.__index)
@@ -737,13 +951,13 @@
       els.tooltip.style.left = `${event.clientX + 12}px`;
       els.tooltip.style.top = `${event.clientY + 12}px`;
       els.tooltip.innerHTML = `
-        <strong>${d.state || d.label || d.id || ('Ponto ' + d.__index)}</strong><br>
+        <strong>${d.state || d.label || d.id || (t('pointFallback', d.__index))}</strong><br>
         ${xCol}: ${formatNum(d[xCol])}<br>
         ${yCol}: ${formatNum(d[yCol])}<br>
-        ${colorCol !== '(nenhuma)' ? `${colorCol}: ${d[colorCol]}<br>` : ''}
-        ${sizeCol !== '(fixo)' ? `${sizeCol}: ${formatNum(d[sizeCol])}<br>` : ''}
+        ${colorCol !== t('none') ? `${colorCol}: ${d[colorCol]}<br>` : ''}
+        ${sizeCol !== t('fixed') ? `${sizeCol}: ${formatNum(d[sizeCol])}<br>` : ''}
         ${hapticCol}: ${formatNum(d[hapticCol])}<br>
-        Nível háptico: ${d.__hapticLevel} → ${d.__hapticDuration} ms
+        ${t('tooltipLevel')}: ${d.__hapticLevel} → ${d.__hapticDuration} ms
       `;
     }
 
@@ -754,14 +968,14 @@
     function renderSelectedDetails(d, config) {
       const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
       const rows = [
-        [d.state || d.label || d.id || `Ponto ${d.__index}`, 'identificador'],
+        [d.state || d.label || d.id || t('pointFallback', d.__index), t('identifier')],
         [formatNum(d[xCol]), xCol],
         [formatNum(d[yCol]), yCol],
-        [colorCol !== '(nenhuma)' ? String(d[colorCol]) : '—', `cor: ${colorCol}`],
-        [sizeCol !== '(fixo)' ? formatNum(d[sizeCol]) : 'fixo', `tamanho: ${sizeCol}`],
+        [colorCol !== t('none') ? String(d[colorCol]) : '—', `${t('color')}: ${colorCol}`],
+        [sizeCol !== t('fixed') ? formatNum(d[sizeCol]) : t('fixedLower'), `${t('size')}: ${sizeCol}`],
         [formatNum(d[hapticCol]), hapticCol],
-        [`Nível ${d.__hapticLevel}`, 'nível háptico'],
-        [`${d.__hapticDuration} ms`, 'padrão enviado']
+        [`${t('hapticLevel')} ${d.__hapticLevel}`, t('hapticLevel')],
+        [`${d.__hapticDuration} ms`, t('sentPattern')]
       ];
       els.selectedDetails.innerHTML = rows.map(([value, label]) => `
         <div class="detail-row"><span>${label}</span><span>${value}</span></div>
@@ -772,7 +986,7 @@
       const scaleValues = durationScales[levels];
       els.hapticLegend.innerHTML = currentBins.map((bin, i) => `
         <div class="legend-row">
-          <span>Nível ${i + 1} → ${scaleValues[i]} ms<br><span class="small">${formatNum(bin.low)} até ${formatNum(bin.high)}</span></span>
+          <span>${t('logLevel')} ${i + 1} → ${scaleValues[i]} ms<br><span class="small">${formatNum(bin.low)} ${t('to')} ${formatNum(bin.high)}</span></span>
           <span>${methodLabel(method)}</span>
         </div>
       `).join('');
@@ -780,20 +994,20 @@
 
     function renderMappingSummary(cfg) {
       els.mappingSummary.innerHTML = `
-        <div><strong>Visual</strong>: X = ${cfg.xCol}; Y = ${cfg.yCol}; Cor = ${cfg.colorCol}; Tamanho = ${cfg.sizeCol}</div>
-        <div style="margin-top:6px;"><strong>Háptico</strong>: Variável = ${cfg.hapticCol}; Codificação = duração; Níveis = ${cfg.levels}; Método = ${methodLabel(cfg.method)}</div>
-        <div style="margin-top:6px;"><strong>Escala vibrotátil</strong>: ${durationScales[cfg.levels].join(', ')} ms</div>
+        <div><strong>${t('visualWord')}</strong>: X = ${cfg.xCol}; Y = ${cfg.yCol}; ${t('color')} = ${cfg.colorCol}; ${t('size')} = ${cfg.sizeCol}</div>
+        <div style="margin-top:6px;"><strong>${t('hapticWord')}</strong>: ${t('variable')} = ${cfg.hapticCol}; ${t('encoding')} = ${t('duration').toLowerCase()}; ${t('levels')} = ${cfg.levels}; ${t('dataMethod')} = ${methodLabel(cfg.method)}</div>
+        <div style="margin-top:6px;"><strong>${t('vibrotactileScale')}</strong>: ${durationScales[cfg.levels].join(', ')} ms</div>
       `;
     }
 
     function methodLabel(method) {
       return {
-        uniform: 'uniforme',
-        quantile: 'quantil',
-        geometric: 'geométrico',
+        uniform: t('uniform'),
+        quantile: t('quantile'),
+        geometric: t('geometric'),
         zscore: 'z-score',
-        manual: 'manual',
-        meanSplit: 'média'
+        manual: t('manual'),
+        meanSplit: t('meanSplit')
       }[method] || method;
     }
 
@@ -814,9 +1028,9 @@
         levels: +els.levelsSelect.value
       };
 
-      let status = 'somente visual';
+      let status = t('visualOnly');
       if (els.sendOnClickChk.checked) {
-        status = sendWS(command) ? 'enviado' : 'não conectado';
+        status = sendWS(command) ? t('sent') : t('notConnected');
       }
 
       addLog({
@@ -886,7 +1100,7 @@
     }
 
     async function loadDefaultCsv() {
-      const data = await d3.csv('sprint4_data.csv');
+      const data = await d3.csv('./sprint4_data.csv');
       parseData(data);
     }
 
@@ -904,11 +1118,11 @@
     els.disconnectBtn.addEventListener('click', disconnectWebSocket);
     els.pingBtn.addEventListener('click', () => {
       const ok = sendWS({ cmd: 'ping' });
-      addLog({ point: 'UI', visual: '-', haptic: 'ping', level: '-', command: '{"cmd":"ping"}', status: ok ? 'enviado' : 'não conectado' });
+      addLog({ point: 'UI', visual: '-', haptic: 'ping', level: '-', command: '{"cmd":"ping"}', status: ok ? t('sent') : t('notConnected') });
     });
     els.stopBtn.addEventListener('click', () => {
       const ok = sendWS({ cmd: 'stop' });
-      addLog({ point: 'UI', visual: '-', haptic: 'stop', level: '-', command: '{"cmd":"stop"}', status: ok ? 'enviado' : 'não conectado' });
+      addLog({ point: 'UI', visual: '-', haptic: 'stop', level: '-', command: '{"cmd":"stop"}', status: ok ? t('sent') : t('notConnected') });
     });
     els.loadDefaultBtn.addEventListener('click', loadDefaultCsv);
     els.csvFile.addEventListener('change', (e) => {
@@ -928,6 +1142,7 @@
       if (rawData.length) applyMappings();
     });
 
+    applyLanguage();
     loadDefaultCsv();
   </script>
 </body>
