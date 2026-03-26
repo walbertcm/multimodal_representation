@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprint 4 - Scatterplot Visuo-Háptico Configurável</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --line: #d7deea;
+      --text: #223042;
+      --muted: #607086;
+      --accent: #1f6feb;
+      --ok: #188038;
+      --warn: #b26a00;
+      --error: #c62828;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      min-height: 100vh;
+      gap: 14px;
+      padding: 14px;
+    }
+    .panel, .main {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(20, 40, 70, 0.05);
+    }
+    .panel {
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .main {
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+    }
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 16px; margin-top: 14px; }
+    h3 { font-size: 14px; }
+    .section {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .grid1 { display: grid; gap: 10px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    select, input, button, textarea {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: #f5f8ff;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.secondary {
+      background: #eef4ff;
+    }
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      width: fit-content;
+      background: #fafcff;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--warn);
+    }
+    .dot.connected { background: var(--ok); }
+    .dot.disconnected { background: var(--error); }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .viz-wrap {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 12px;
+      min-height: 560px;
+    }
+    .chart-card, .side-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+    }
+    .side-card { display: grid; grid-template-rows: auto auto 1fr; gap: 10px; }
+    #chart {
+      width: 100%;
+      height: 100%;
+      min-height: 520px;
+    }
+    .legend-list, .details-list {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .legend-row, .detail-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fafcff;
+    }
+    .axis-label {
+      font-size: 12px;
+      fill: var(--muted);
+    }
+    .plot-title {
+      font-size: 16px;
+      font-weight: 700;
+      fill: var(--text);
+    }
+    .point {
+      stroke: #fff;
+      stroke-width: 1.2px;
+      cursor: pointer;
+      opacity: 0.9;
+    }
+    .point:hover {
+      stroke: #000;
+      stroke-width: 1.5px;
+    }
+    .point.selected {
+      stroke: #000;
+      stroke-width: 2.5px;
+      opacity: 1;
+    }
+    .tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: rgba(33, 40, 48, 0.96);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      display: none;
+      z-index: 999;
+      max-width: 260px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fbff; position: sticky; top: 0; }
+    .log-box {
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+    }
+    .chip {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f8fbff;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    @media (max-width: 1200px) {
+      .app { grid-template-columns: 1fr; }
+      .viz-wrap { grid-template-columns: 1fr; }
+      .topbar { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <h1>Sprint 4 configurável</h1>
+      <div class="small">Scatterplot multimodal com mapeamento visual e háptico configuráveis, usando WebSocket para acionar o ESP32.</div>
+
+      <div class="section">
+        <h2>Conexão WebSocket</h2>
+        <div class="grid1">
+          <div>
+            <label for="wsUrl">URL do ESP32</label>
+            <input id="wsUrl" type="text" value="ws://192.168.1.50:81" />
+          </div>
+          <div class="grid2">
+            <button id="connectBtn" class="primary">Conectar</button>
+            <button id="disconnectBtn">Desconectar</button>
+          </div>
+          <div class="grid2">
+            <button id="pingBtn">Ping</button>
+            <button id="stopBtn">Stop</button>
+          </div>
+          <div class="status"><span id="statusDot" class="dot disconnected"></span><span id="statusText">Desconectado</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Dados</h2>
+        <div class="grid1">
+          <div>
+            <label for="csvFile">Arquivo CSV</label>
+            <input id="csvFile" type="file" accept=".csv" />
+          </div>
+          <button id="loadDefaultBtn" class="secondary">Carregar CSV padrão</button>
+          <div class="small">O CSV padrão é <code>sprint4_data.csv</code>. Também é possível carregar outro arquivo local.</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Mapeamento visual</h2>
+        <div class="grid2">
+          <div><label for="xSelect">Eixo X</label><select id="xSelect"></select></div>
+          <div><label for="ySelect">Eixo Y</label><select id="ySelect"></select></div>
+        </div>
+        <div class="grid2" style="margin-top:10px;">
+          <div><label for="colorSelect">Cor</label><select id="colorSelect"></select></div>
+          <div><label for="sizeSelect">Tamanho</label><select id="sizeSelect"></select></div>
+        </div>
+        <div class="small" style="margin-top:8px;">Cor aceita variável numérica ou categórica. Tamanho usa apenas variável numérica.</div>
+      </div>
+
+      <div class="section">
+        <h2>Mapeamento háptico</h2>
+        <div class="grid1">
+          <div><label for="hapticVarSelect">Variável háptica</label><select id="hapticVarSelect"></select></div>
+          <div class="grid2">
+            <div><label for="hapticEncodingSelect">Codificação</label>
+              <select id="hapticEncodingSelect">
+                <option value="duration">Duração</option>
+              </select>
+            </div>
+            <div><label for="levelsSelect">Níveis</label>
+              <select id="levelsSelect">
+                <option value="4">4</option>
+                <option value="6">6</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+          </div>
+          <div><label for="methodSelect">Método de mapeamento dos dados</label>
+            <select id="methodSelect">
+              <option value="uniform">Discretização uniforme</option>
+              <option value="quantile">Quantis</option>
+              <option value="geometric">Escala geométrica</option>
+              <option value="zscore">Faixas por z-score</option>
+              <option value="manual">Limiares manuais</option>
+              <option value="meanSplit">Quebras pela média</option>
+            </select>
+          </div>
+          <div>
+            <label for="manualThresholds">Limiares manuais (quando aplicável)</label>
+            <input id="manualThresholds" type="text" placeholder="Ex.: 100,300,700" />
+          </div>
+          <button id="applyBtn" class="primary">Aplicar mapeamentos</button>
+        </div>
+        <div class="small" style="margin-top:8px;">
+          Métodos sugeridos: uniforme, quantil e geométrico. Os modos z-score, média e limiares manuais oferecem alternativas analíticas para explorar a estrutura dos dados.
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Envio ao ESP32</h2>
+        <div class="grid1">
+          <div><label><input id="sendOnClickChk" type="checkbox" checked /> Enviar comando ao clicar no ponto</label></div>
+          <div><label><input id="ackInLogChk" type="checkbox" checked /> Registrar ACK/status no log</label></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <div style="font-weight:700; font-size:18px;">Scatterplot visuo-háptico configurável</div>
+          <div class="small">Clique em um ponto para enviar a codificação háptica correspondente ao ESP32.</div>
+        </div>
+        <span class="chip" id="datasetInfo">0 registros</span>
+        <button id="exportLogBtn">Exportar log CSV</button>
+        <button id="clearLogBtn">Limpar log</button>
+      </div>
+
+      <div class="viz-wrap">
+        <div class="chart-card">
+          <svg id="chart"></svg>
+        </div>
+        <div class="side-card">
+          <div>
+            <h3>Ponto selecionado</h3>
+            <div id="selectedDetails" class="details-list">
+              <div class="detail-row"><span>Nenhum ponto selecionado</span><span>—</span></div>
+            </div>
+          </div>
+          <div>
+            <h3>Legenda háptica</h3>
+            <div id="hapticLegend" class="legend-list"></div>
+          </div>
+          <div>
+            <h3>Resumo do mapeamento</h3>
+            <div id="mappingSummary" class="small"></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3>Log de interações</h3>
+        <div class="log-box">
+          <table>
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Ponto</th>
+                <th>Visual</th>
+                <th>Háptico</th>
+                <th>Nível</th>
+                <th>Comando</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+
+  <script>
+    const durationScales = {
+      4: [50, 136, 369, 1000],
+      6: [50, 91, 166, 301, 549, 1000],
+      8: [50, 81, 130, 211, 341, 552, 892, 1000]
+    };
+
+    let rawData = [];
+    let numericColumns = [];
+    let categoricalColumns = [];
+    let ws = null;
+    let logs = [];
+    let lastAck = null;
+    let currentBins = [];
+    let currentScaleValues = [];
+    let selectedDatum = null;
+
+    const els = {
+      wsUrl: document.getElementById('wsUrl'),
+      connectBtn: document.getElementById('connectBtn'),
+      disconnectBtn: document.getElementById('disconnectBtn'),
+      pingBtn: document.getElementById('pingBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+      csvFile: document.getElementById('csvFile'),
+      loadDefaultBtn: document.getElementById('loadDefaultBtn'),
+      xSelect: document.getElementById('xSelect'),
+      ySelect: document.getElementById('ySelect'),
+      colorSelect: document.getElementById('colorSelect'),
+      sizeSelect: document.getElementById('sizeSelect'),
+      hapticVarSelect: document.getElementById('hapticVarSelect'),
+      hapticEncodingSelect: document.getElementById('hapticEncodingSelect'),
+      levelsSelect: document.getElementById('levelsSelect'),
+      methodSelect: document.getElementById('methodSelect'),
+      manualThresholds: document.getElementById('manualThresholds'),
+      applyBtn: document.getElementById('applyBtn'),
+      sendOnClickChk: document.getElementById('sendOnClickChk'),
+      ackInLogChk: document.getElementById('ackInLogChk'),
+      chart: document.getElementById('chart'),
+      tooltip: document.getElementById('tooltip'),
+      selectedDetails: document.getElementById('selectedDetails'),
+      hapticLegend: document.getElementById('hapticLegend'),
+      mappingSummary: document.getElementById('mappingSummary'),
+      logBody: document.getElementById('logBody'),
+      exportLogBtn: document.getElementById('exportLogBtn'),
+      clearLogBtn: document.getElementById('clearLogBtn'),
+      datasetInfo: document.getElementById('datasetInfo')
+    };
+
+    function setStatus(text, connected = false) {
+      els.statusText.textContent = text;
+      els.statusDot.className = `dot ${connected ? 'connected' : 'disconnected'}`;
+    }
+
+    function connectWebSocket() {
+      try {
+        if (ws) ws.close();
+        ws = new WebSocket(els.wsUrl.value.trim());
+        setStatus('Conectando...', false);
+
+        ws.onopen = () => setStatus('Conectado', true);
+        ws.onclose = () => setStatus('Desconectado', false);
+        ws.onerror = () => setStatus('Erro na conexão', false);
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            lastAck = payload;
+            if (els.ackInLogChk.checked) {
+              addLog({
+                point: payload.point || 'ESP32',
+                visual: 'ACK',
+                haptic: payload.cmd || payload.status || 'mensagem',
+                level: payload.level ?? '-',
+                command: event.data,
+                status: payload.status || 'ok'
+              });
+            }
+          } catch {
+            if (els.ackInLogChk.checked) {
+              addLog({ point: 'ESP32', visual: 'RAW', haptic: 'mensagem', level: '-', command: event.data, status: 'recebido' });
+            }
+          }
+        };
+      } catch (err) {
+        setStatus('Falha ao conectar', false);
+        console.error(err);
+      }
+    }
+
+    function disconnectWebSocket() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      setStatus('Desconectado', false);
+    }
+
+    function sendWS(obj) {
+      const text = JSON.stringify(obj);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(text);
+        return true;
+      }
+      return false;
+    }
+
+    function isNumericColumn(data, key) {
+      return data.every(d => d[key] === null || d[key] === undefined || d[key] === '' || !Number.isNaN(+d[key]));
+    }
+
+    function parseData(rows) {
+      const columns = rows.columns || Object.keys(rows[0] || {});
+      numericColumns = columns.filter(col => isNumericColumn(rows, col));
+      categoricalColumns = columns.filter(col => !numericColumns.includes(col));
+      rawData = rows.map((d, idx) => {
+        const out = { ...d, __index: idx };
+        numericColumns.forEach(col => { out[col] = +d[col]; });
+        return out;
+      });
+      els.datasetInfo.textContent = `${rawData.length} registros`;
+      populateControls(columns);
+      applyMappings();
+    }
+
+    function populateControls(columns) {
+      const numeric = numericColumns;
+      const colorCandidates = ['(nenhuma)', ...columns];
+      const sizeCandidates = ['(fixo)', ...numeric];
+
+      fillSelect(els.xSelect, numeric, numeric[0]);
+      fillSelect(els.ySelect, numeric, numeric[1] || numeric[0]);
+      fillSelect(els.colorSelect, colorCandidates, categoricalColumns[0] || numeric[2] || '(nenhuma)');
+      fillSelect(els.sizeSelect, sizeCandidates, numeric[2] || '(fixo)');
+      fillSelect(els.hapticVarSelect, numeric, numeric[3] || numeric[0]);
+    }
+
+    function fillSelect(select, values, selected) {
+      select.innerHTML = '';
+      values.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        if (v === selected) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function quantile(sorted, q) {
+      const pos = (sorted.length - 1) * q;
+      const base = Math.floor(pos);
+      const rest = pos - base;
+      if (sorted[base + 1] !== undefined) return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+      return sorted[base];
+    }
+
+    function uniqueSorted(values) {
+      return [...new Set(values)].sort((a, b) => a - b);
+    }
+
+    function computeBins(values, method, levels, manualThresholdsText = '') {
+      const sorted = values.filter(v => Number.isFinite(v)).sort((a, b) => a - b);
+      const min = d3.min(sorted);
+      const max = d3.max(sorted);
+      const mean = d3.mean(sorted);
+      const sd = d3.deviation(sorted) || 0;
+      if (!sorted.length || min === undefined || max === undefined) return [];
+      const bins = [];
+
+      if (method === 'uniform') {
+        const step = (max - min) / levels;
+        for (let i = 0; i < levels; i++) {
+          const low = i === 0 ? min : min + step * i;
+          const high = i === levels - 1 ? max : min + step * (i + 1);
+          bins.push({ low, high });
+        }
+        return bins;
+      }
+
+      if (method === 'quantile') {
+        const edges = [min];
+        for (let i = 1; i < levels; i++) edges.push(quantile(sorted, i / levels));
+        edges.push(max);
+        for (let i = 0; i < levels; i++) bins.push({ low: edges[i], high: edges[i + 1] });
+        return bins;
+      }
+
+      if (method === 'geometric') {
+        const offset = min <= 0 ? 1 - min : 0;
+        const shiftedMin = min + offset;
+        const shiftedMax = max + offset;
+        const ratio = Math.pow(shiftedMax / shiftedMin, 1 / levels);
+        let prev = shiftedMin;
+        for (let i = 0; i < levels; i++) {
+          const next = i === levels - 1 ? shiftedMax : shiftedMin * Math.pow(ratio, i + 1);
+          bins.push({ low: prev - offset, high: next - offset });
+          prev = next;
+        }
+        return bins;
+      }
+
+      if (method === 'zscore') {
+        // Heurística: cria limiares entre -1.5 e +1.5 SD ou distribui simetricamente.
+        const edges = [];
+        for (let i = 0; i <= levels; i++) {
+          const z = -1.5 + (3.0 * i / levels);
+          edges.push(Math.max(min, Math.min(max, mean + z * sd)));
+        }
+        edges[0] = min;
+        edges[edges.length - 1] = max;
+        const uniq = uniqueSorted(edges);
+        while (uniq.length < levels + 1) uniq.push(max);
+        for (let i = 0; i < levels; i++) bins.push({ low: uniq[i], high: uniq[i + 1] ?? max });
+        return bins;
+      }
+
+      if (method === 'manual') {
+        const thresholds = manualThresholdsText.split(',').map(s => +s.trim()).filter(Number.isFinite).sort((a, b) => a - b);
+        if (thresholds.length !== levels - 1) throw new Error(`Para ${levels} níveis, informe ${levels - 1} limiares.`);
+        const edges = [min, ...thresholds, max];
+        for (let i = 0; i < levels; i++) bins.push({ low: edges[i], high: edges[i + 1] });
+        return bins;
+      }
+
+      if (method === 'meanSplit') {
+        // Divide o intervalo em torno da média, interpolando abaixo/acima da média.
+        const lowerCount = Math.floor(levels / 2);
+        const upperCount = levels - lowerCount;
+        const lowerStep = (mean - min) / Math.max(lowerCount, 1);
+        const upperStep = (max - mean) / Math.max(upperCount, 1);
+        let edges = [min];
+        for (let i = 1; i <= lowerCount; i++) edges.push(i === lowerCount ? mean : min + lowerStep * i);
+        for (let i = 1; i < upperCount; i++) edges.push(mean + upperStep * i);
+        edges.push(max);
+        edges = uniqueSorted(edges);
+        while (edges.length < levels + 1) edges.push(max);
+        for (let i = 0; i < levels; i++) bins.push({ low: edges[i], high: edges[i + 1] ?? max });
+        return bins;
+      }
+
+      return bins;
+    }
+
+    function mapValueToLevel(value, bins) {
+      for (let i = 0; i < bins.length; i++) {
+        const bin = bins[i];
+        const isLast = i === bins.length - 1;
+        if ((value >= bin.low && value < bin.high) || (isLast && value <= bin.high)) {
+          return i + 1;
+        }
+      }
+      return bins.length;
+    }
+
+    function getColorScale(data, col) {
+      if (!col || col === '(nenhuma)') return () => '#4f81bd';
+      if (numericColumns.includes(col)) {
+        const extent = d3.extent(data, d => d[col]);
+        return d3.scaleSequential(d3.interpolateTurbo).domain(extent);
+      }
+      const domain = [...new Set(data.map(d => d[col]))];
+      return d3.scaleOrdinal(domain, d3.schemeTableau10.concat(d3.schemeSet3 || []));
+    }
+
+    function getSizeScale(data, col) {
+      if (!col || col === '(fixo)') return () => 6;
+      const extent = d3.extent(data, d => d[col]);
+      return d3.scaleSqrt().domain(extent).range([4, 14]);
+    }
+
+    function applyMappings() {
+      if (!rawData.length) return;
+      try {
+        const xCol = els.xSelect.value;
+        const yCol = els.ySelect.value;
+        const colorCol = els.colorSelect.value;
+        const sizeCol = els.sizeSelect.value;
+        const hapticCol = els.hapticVarSelect.value;
+        const levels = +els.levelsSelect.value;
+        const method = els.methodSelect.value;
+        currentScaleValues = durationScales[levels];
+        const hapticValues = rawData.map(d => d[hapticCol]);
+        currentBins = computeBins(hapticValues, method, levels, els.manualThresholds.value);
+
+        rawData.forEach(d => {
+          d.__hapticLevel = mapValueToLevel(d[hapticCol], currentBins);
+          d.__hapticDuration = currentScaleValues[d.__hapticLevel - 1];
+        });
+
+        renderChart({ xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
+        renderLegend(hapticCol, levels, method);
+        renderMappingSummary({ xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
+        if (selectedDatum) {
+          const match = rawData.find(d => d.__index === selectedDatum.__index);
+          selectedDatum = match || null;
+          if (selectedDatum) renderSelectedDetails(selectedDatum, { xCol, yCol, colorCol, sizeCol, hapticCol });
+        }
+      } catch (err) {
+        alert(`Erro ao aplicar mapeamentos: ${err.message}`);
+      }
+    }
+
+    function renderChart(config) {
+      const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      const svg = d3.select('#chart');
+      svg.selectAll('*').remove();
+      const width = els.chart.clientWidth || 900;
+      const height = 560;
+      svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+      const margin = { top: 46, right: 24, bottom: 56, left: 64 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+
+      const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+      const xScale = d3.scaleLinear().domain(d3.extent(rawData, d => d[xCol])).nice().range([0, innerW]);
+      const yScale = d3.scaleLinear().domain(d3.extent(rawData, d => d[yCol])).nice().range([innerH, 0]);
+      const colorScale = getColorScale(rawData, colorCol);
+      const sizeScale = getSizeScale(rawData, sizeCol);
+
+      g.append('g')
+        .attr('transform', `translate(0,${innerH})`)
+        .call(d3.axisBottom(xScale).ticks(8))
+        .call(g => g.selectAll('line').attr('stroke', '#cfd9e6'))
+        .call(g => g.selectAll('path').attr('stroke', '#aebdd0'));
+
+      g.append('g')
+        .call(d3.axisLeft(yScale).ticks(8))
+        .call(g => g.selectAll('line').attr('stroke', '#cfd9e6'))
+        .call(g => g.selectAll('path').attr('stroke', '#aebdd0'));
+
+      svg.append('text').attr('class', 'plot-title').attr('x', width / 2).attr('y', 24).attr('text-anchor', 'middle')
+        .text(`Scatterplot: ${xCol} × ${yCol}`);
+      svg.append('text').attr('class', 'axis-label').attr('x', width / 2).attr('y', height - 10).attr('text-anchor', 'middle')
+        .text(`Eixo X: ${xCol}`);
+      svg.append('text').attr('class', 'axis-label').attr('transform', `translate(16,${height / 2}) rotate(-90)`).attr('text-anchor', 'middle')
+        .text(`Eixo Y: ${yCol}`);
+
+      g.selectAll('.point')
+        .data(rawData, d => d.__index)
+        .enter()
+        .append('circle')
+        .attr('class', 'point')
+        .attr('cx', d => xScale(d[xCol]))
+        .attr('cy', d => yScale(d[yCol]))
+        .attr('r', d => sizeScale(d[sizeCol]))
+        .attr('fill', d => colorCol === '(nenhuma)' ? '#4f81bd' : colorScale(d[colorCol]))
+        .on('mousemove', (event, d) => showTooltip(event, d, config))
+        .on('mouseleave', hideTooltip)
+        .on('click', (event, d) => handlePointClick(d, config));
+
+      if (selectedDatum) {
+        g.selectAll('.point').classed('selected', d => d.__index === selectedDatum.__index);
+      }
+    }
+
+    function showTooltip(event, d, config) {
+      const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      els.tooltip.style.display = 'block';
+      els.tooltip.style.left = `${event.clientX + 12}px`;
+      els.tooltip.style.top = `${event.clientY + 12}px`;
+      els.tooltip.innerHTML = `
+        <strong>${d.state || d.label || d.id || ('Ponto ' + d.__index)}</strong><br>
+        ${xCol}: ${formatNum(d[xCol])}<br>
+        ${yCol}: ${formatNum(d[yCol])}<br>
+        ${colorCol !== '(nenhuma)' ? `${colorCol}: ${d[colorCol]}<br>` : ''}
+        ${sizeCol !== '(fixo)' ? `${sizeCol}: ${formatNum(d[sizeCol])}<br>` : ''}
+        ${hapticCol}: ${formatNum(d[hapticCol])}<br>
+        Nível háptico: ${d.__hapticLevel} → ${d.__hapticDuration} ms
+      `;
+    }
+
+    function hideTooltip() {
+      els.tooltip.style.display = 'none';
+    }
+
+    function renderSelectedDetails(d, config) {
+      const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      const rows = [
+        [d.state || d.label || d.id || `Ponto ${d.__index}`, 'identificador'],
+        [formatNum(d[xCol]), xCol],
+        [formatNum(d[yCol]), yCol],
+        [colorCol !== '(nenhuma)' ? String(d[colorCol]) : '—', `cor: ${colorCol}`],
+        [sizeCol !== '(fixo)' ? formatNum(d[sizeCol]) : 'fixo', `tamanho: ${sizeCol}`],
+        [formatNum(d[hapticCol]), hapticCol],
+        [`Nível ${d.__hapticLevel}`, 'nível háptico'],
+        [`${d.__hapticDuration} ms`, 'padrão enviado']
+      ];
+      els.selectedDetails.innerHTML = rows.map(([value, label]) => `
+        <div class="detail-row"><span>${label}</span><span>${value}</span></div>
+      `).join('');
+    }
+
+    function renderLegend(hapticCol, levels, method) {
+      const scaleValues = durationScales[levels];
+      els.hapticLegend.innerHTML = currentBins.map((bin, i) => `
+        <div class="legend-row">
+          <span>Nível ${i + 1} → ${scaleValues[i]} ms<br><span class="small">${formatNum(bin.low)} até ${formatNum(bin.high)}</span></span>
+          <span>${methodLabel(method)}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderMappingSummary(cfg) {
+      els.mappingSummary.innerHTML = `
+        <div><strong>Visual</strong>: X = ${cfg.xCol}; Y = ${cfg.yCol}; Cor = ${cfg.colorCol}; Tamanho = ${cfg.sizeCol}</div>
+        <div style="margin-top:6px;"><strong>Háptico</strong>: Variável = ${cfg.hapticCol}; Codificação = duração; Níveis = ${cfg.levels}; Método = ${methodLabel(cfg.method)}</div>
+        <div style="margin-top:6px;"><strong>Escala vibrotátil</strong>: ${durationScales[cfg.levels].join(', ')} ms</div>
+      `;
+    }
+
+    function methodLabel(method) {
+      return {
+        uniform: 'uniforme',
+        quantile: 'quantil',
+        geometric: 'geométrico',
+        zscore: 'z-score',
+        manual: 'manual',
+        meanSplit: 'média'
+      }[method] || method;
+    }
+
+    function handlePointClick(d, config) {
+      selectedDatum = d;
+      renderChart(config);
+      renderSelectedDetails(d, config);
+
+      const command = {
+        cmd: 'play',
+        dim: els.hapticEncodingSelect.value,
+        level: d.__hapticLevel,
+        value: d.__hapticDuration,
+        point: d.state || d.label || d.id || `point_${d.__index}`,
+        raw: d[config.hapticCol],
+        variable: config.hapticCol,
+        method: els.methodSelect.value,
+        levels: +els.levelsSelect.value
+      };
+
+      let status = 'somente visual';
+      if (els.sendOnClickChk.checked) {
+        status = sendWS(command) ? 'enviado' : 'não conectado';
+      }
+
+      addLog({
+        point: command.point,
+        visual: `${config.xCol}/${config.yCol}`,
+        haptic: `${config.hapticCol}=${formatNum(command.raw)}`,
+        level: `${command.level} (${command.value} ms)`,
+        command: JSON.stringify(command),
+        status
+      });
+    }
+
+    function addLog(entry) {
+      const row = {
+        time: new Date().toLocaleTimeString(),
+        ...entry
+      };
+      logs.unshift(row);
+      if (logs.length > 200) logs.pop();
+      renderLog();
+    }
+
+    function renderLog() {
+      els.logBody.innerHTML = logs.map(row => `
+        <tr>
+          <td>${row.time}</td>
+          <td>${row.point}</td>
+          <td>${row.visual}</td>
+          <td>${row.haptic}</td>
+          <td>${row.level}</td>
+          <td><code>${escapeHtml(row.command)}</code></td>
+          <td>${row.status}</td>
+        </tr>
+      `).join('');
+    }
+
+    function exportLogCsv() {
+      if (!logs.length) return;
+      const header = ['time','point','visual','haptic','level','command','status'];
+      const lines = [header.join(',')];
+      logs.forEach(row => {
+        lines.push(header.map(h => csvEscape(row[h] ?? '')).join(','));
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sprint4_log.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(value) {
+      const s = String(value).replace(/"/g, '""');
+      return `"${s}"`;
+    }
+
+    function formatNum(v) {
+      return Number.isFinite(v) ? d3.format(',.2f')(v) : String(v);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    async function loadDefaultCsv() {
+      const data = await d3.csv('sprint4_data.csv');
+      parseData(data);
+    }
+
+    function loadLocalCsv(file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        const data = d3.csvParse(text);
+        parseData(data);
+      };
+      reader.readAsText(file);
+    }
+
+    els.connectBtn.addEventListener('click', connectWebSocket);
+    els.disconnectBtn.addEventListener('click', disconnectWebSocket);
+    els.pingBtn.addEventListener('click', () => {
+      const ok = sendWS({ cmd: 'ping' });
+      addLog({ point: 'UI', visual: '-', haptic: 'ping', level: '-', command: '{"cmd":"ping"}', status: ok ? 'enviado' : 'não conectado' });
+    });
+    els.stopBtn.addEventListener('click', () => {
+      const ok = sendWS({ cmd: 'stop' });
+      addLog({ point: 'UI', visual: '-', haptic: 'stop', level: '-', command: '{"cmd":"stop"}', status: ok ? 'enviado' : 'não conectado' });
+    });
+    els.loadDefaultBtn.addEventListener('click', loadDefaultCsv);
+    els.csvFile.addEventListener('change', (e) => {
+      if (e.target.files?.[0]) loadLocalCsv(e.target.files[0]);
+    });
+    els.applyBtn.addEventListener('click', applyMappings);
+    els.exportLogBtn.addEventListener('click', exportLogCsv);
+    els.clearLogBtn.addEventListener('click', () => { logs = []; renderLog(); });
+
+    ['xSelect','ySelect','colorSelect','sizeSelect','hapticVarSelect','levelsSelect','methodSelect'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        if (id !== 'methodSelect' || els.methodSelect.value !== 'manual') applyMappings();
+      });
+    });
+
+    window.addEventListener('resize', () => {
+      if (rawData.length) applyMappings();
+    });
+
+    loadDefaultCsv();
+  </script>
+</body>
+</html>
