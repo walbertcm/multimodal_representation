@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Configurable Visuo-Haptic Scatterplot</title>
+  <title>Configurable Visuo-Haptic Visualization</title>
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <style>
     :root {
@@ -261,7 +261,7 @@ input[type="file"]::file-selector-button:hover {
   <div class="app">
     <aside class="panel">
       <h1>Visuo-Haptic Data Encoding System</h1>
-      <div class="small">Multimodal scatterplot with configurable visual and haptic mappings, using WebSocket to drive an haptic rendering device.</div>
+      <div class="small">Multimodal visualization with configurable visual and vibrotactile mappings, using WebSocket to drive a haptic rendering device.</div>
 <div class="section">
         <h2>WebSocket Connection</h2>
         <div class="grid1">
@@ -298,7 +298,15 @@ input[type="file"]::file-selector-button:hover {
 
       <div class="section">
         <h2>Visual Mapping</h2>
-        <div class="grid2">
+        <div class="grid1">
+          <div><label for="chartTypeSelect">Chart Type</label>
+            <select id="chartTypeSelect">
+              <option value="scatter">Scatterplot</option>
+              <option value="bar">Bar Chart</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid2" style="margin-top:10px;">
           <div><label for="xSelect">X Axis</label><select id="xSelect"></select></div>
           <div><label for="ySelect">Y Axis</label><select id="ySelect"></select></div>
         </div>
@@ -322,7 +330,9 @@ input[type="file"]::file-selector-button:hover {
             <div><label for="levelsSelect">Number of Distinct Stimuli</label>
               <select id="levelsSelect">
                 <option value="4">4</option>
+                <option value="5">5</option>
                 <option value="6">6</option>
+                <option value="7">7</option>
                 <option value="8">8</option>
               </select>
             </div>
@@ -360,8 +370,8 @@ input[type="file"]::file-selector-button:hover {
     <main class="main">
       <div class="topbar">
         <div>
-          <div style="font-weight:700; font-size:18px;">Configurable Visuo-Haptic Scatterplot</div>
-          <div class="small">Click a point to send the corresponding haptic encoding to the ESP32.</div>
+          <div style="font-weight:700; font-size:18px;">Configurable Visuo-Haptic Visualization</div>
+          <div class="small">Click a point or bar to send the corresponding haptic encoding and motor index to the ESP32.</div>
         </div>
         <span class="chip" id="datasetInfo">0 records</span>
         <button id="exportLogBtn">Export Interaction Log</button>
@@ -417,7 +427,9 @@ input[type="file"]::file-selector-button:hover {
   <script>
     const durationScales = {
       4: [50, 136, 369, 1000],
+      5: [50, 106, 224, 473, 1000],
       6: [50, 91, 166, 301, 549, 1000],
+      7: [50, 82, 136, 224, 368, 607, 1000],
       8: [50, 81, 130, 211, 341, 552, 892, 1000]
     };
 
@@ -425,10 +437,15 @@ input[type="file"]::file-selector-button:hover {
     let numericColumns = [];
     let categoricalColumns = [];
     let ws = null;
+    let wsReconnectTimer = null;
+    let manualDisconnect = false;
     let logs = [];
     let lastAck = null;
     let currentBins = [];
     let currentScaleValues = [];
+    let currentBarData = [];
+    let currentBarConfig = null;
+    let barPlaybackTimer = null;
     let selectedDatum = null;
 
     const els = {
@@ -441,6 +458,8 @@ input[type="file"]::file-selector-button:hover {
       statusText: document.getElementById('statusText'),
       csvFile: document.getElementById('csvFile'),
       loadDefaultBtn: document.getElementById('loadDefaultBtn'),
+      fileName: document.getElementById('fileName'),
+      chartTypeSelect: document.getElementById('chartTypeSelect'),
       xSelect: document.getElementById('xSelect'),
       ySelect: document.getElementById('ySelect'),
       colorSelect: document.getElementById('colorSelect'),
@@ -468,9 +487,9 @@ input[type="file"]::file-selector-button:hover {
 
     const i18n = {
       en: {
-        pageTitle: 'Configurable Visuo-Haptic Scatterplot',
+        pageTitle: 'Configurable Visuo-Haptic Visualization',
         panelTitle: 'Visuo-Haptic Data Encoding System',
-        panelSubtitle: 'Multimodal scatterplot with configurable visual and haptic mappings, using WebSocket to drive an haptic rendering device.',
+        panelSubtitle: 'Multimodal visualization with configurable visual and vibrotactile mappings, using WebSocket to drive a haptic rendering device.',
         wsSection: 'WebSocket Connection',
         esp32Url: 'Device URL (ws://ip:port)',
         connect: 'Connect',
@@ -486,6 +505,7 @@ input[type="file"]::file-selector-button:hover {
         loadDefault: 'Load default CSV',
         defaultCsvHelp: 'The default CSV is default_data.csv. You can also load another local file.',
         visualSection: 'Visual Mapping',
+        chartType: 'Chart Type',
         xAxis: 'X Axis',
         yAxis: 'Y Axis',
         color: 'Color',
@@ -506,12 +526,12 @@ input[type="file"]::file-selector-button:hover {
         manualThresholds: 'User-defined Limits (when applicable)',
         manualPlaceholder: 'E.g.: 100,300,700',
         applyMappings: 'Apply Mappings',
-        hapticHelp: ''/*'Suggested methods: equal interval, quantile, and logarithmic. Z-score, mean split, and user-defined thresholds offer analytical alternatives to explore data structure.'*/,
+        hapticHelp: 'Suggested methods: equal interval, quantile, and geometric scaling. Z-score, mean split, and user-defined limits provide analytical alternatives.',
         sendSection: 'Send to ESP32',
         sendOnClick: 'Send command when clicking a point',
         logAck: 'Log ACK/status',
-        mainTitle: 'Configurable Visuo-Haptic Scatterplot',
-        mainSubtitle: 'Click a point to send the corresponding haptic encoding to the ESP32.',
+        mainTitle: 'Configurable Visuo-Haptic Visualization',
+        mainSubtitle: 'Click a point or bar to send the corresponding haptic encoding and motor index to the ESP32.',
         records: 'records',
         exportLog: 'Export Interaction Log',
         clearLog: 'Clear log',
@@ -550,6 +570,7 @@ input[type="file"]::file-selector-button:hover {
         message: 'message',
         received: 'received',
         scatterplot: 'Scatterplot',
+        barchart: 'Bar Chart',
         pointFallback: (idx) => `Point ${idx}`,
         axisLabelX: (x) => `X Axis: ${x}`,
         axisLabelY: (y) => `Y Axis: ${y}`,
@@ -564,11 +585,11 @@ input[type="file"]::file-selector-button:hover {
 
     function localizedStatusKey(text) {
       const map = {
-        [i18n.en.disconnected]: 'disconnected', [i18n.pt.disconnected]: 'disconnected',
-        [i18n.en.connecting]: 'connecting', [i18n.pt.connecting]: 'connecting',
-        [i18n.en.connected]: 'connected', [i18n.pt.connected]: 'connected',
-        [i18n.en.connectionError]: 'connectionError', [i18n.pt.connectionError]: 'connectionError',
-        [i18n.en.failedConnect]: 'failedConnect', [i18n.pt.failedConnect]: 'failedConnect'
+        [i18n.en.disconnected]: 'disconnected',
+        [i18n.en.connecting]: 'connecting',
+        [i18n.en.connected]: 'connected',
+        [i18n.en.connectionError]: 'connectionError',
+        [i18n.en.failedConnect]: 'failedConnect'
       };
       return map[text] || null;
     }
@@ -576,7 +597,8 @@ input[type="file"]::file-selector-button:hover {
     function setStatus(text, connected = false) {
       const key = localizedStatusKey(text);
       els.statusText.textContent = key ? t(key) : text;
-      els.statusDot.className = `dot ${connected ? 'connected' : 'disconnected'}`;
+      const keyClass = key === 'connecting' ? '' : (connected ? 'connected' : 'disconnected');
+      els.statusDot.className = `dot ${keyClass}`;
     }
 
     function applyLanguage() {
@@ -596,6 +618,9 @@ input[type="file"]::file-selector-button:hover {
       els.loadDefaultBtn.textContent = t('loadDefault');
       qa('aside .section .small')[0].textContent = t('defaultCsvHelp');
       qa('aside .section h2')[2].textContent = t('visualSection');
+      q('label[for="chartTypeSelect"]').textContent = t('chartType');
+      q('#chartTypeSelect option[value="scatter"]').textContent = t('scatterplot');
+      q('#chartTypeSelect option[value="bar"]').textContent = t('barchart');
       q('label[for="xSelect"]').textContent = t('xAxis');
       q('label[for="ySelect"]').textContent = t('yAxis');
       q('label[for="colorSelect"]').textContent = t('color');
@@ -628,7 +653,7 @@ input[type="file"]::file-selector-button:hover {
       qAllSide = document.querySelectorAll('.side-card h3');
       qAllSide[1].textContent = t('hapticLegend');
       qAllSide[2].textContent = t('mappingSummary');
-      q('main .section h2').textContent = t('interactionLog');
+      document.querySelector('main h3').textContent = t('interactionLog');
       const ths = qa('.log-box thead th');
       [t('logTime'), t('logPoint'), t('logVisual'), t('logHaptic'), t('logLevel'), t('logCommand'), t('logStatus')].forEach((v,i)=>ths[i].textContent=v);
       els.datasetInfo.textContent = `${rawData.length} ${t('records')}`;
@@ -644,19 +669,52 @@ input[type="file"]::file-selector-button:hover {
       renderLog();
     }
 
+    function scheduleReconnect() {
+      if (manualDisconnect || wsReconnectTimer) return;
+      wsReconnectTimer = setTimeout(() => {
+        wsReconnectTimer = null;
+        connectWebSocket();
+      }, 2000);
+    }
+
     function connectWebSocket() {
       try {
-        if (ws) ws.close();
-        ws = new WebSocket(els.wsUrl.value.trim());
+        const url = els.wsUrl.value.trim();
+        manualDisconnect = false;
+        if (wsReconnectTimer) {
+          clearTimeout(wsReconnectTimer);
+          wsReconnectTimer = null;
+        }
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+          ws.close();
+        }
         setStatus('Connecting...', false);
+        ws = new WebSocket(url);
 
-        ws.onopen = () => setStatus('Connected', true);
-        ws.onclose = () => setStatus('Disconnected', false);
-        ws.onerror = () => setStatus('Connection error', false);
+        ws.onopen = () => {
+          setStatus('Connected', true);
+          sendWS({ cmd: 'status' });
+          if (els.chartTypeSelect.value === 'bar' && currentBarData.length && currentBarConfig) {
+            scheduleBarChartContinuousPlayback(currentBarData, currentBarConfig);
+          }
+        };
+
+        ws.onclose = () => {
+          setStatus('Disconnected', false);
+          scheduleReconnect();
+        };
+
+        ws.onerror = () => {
+          setStatus('Connection error', false);
+        };
+
         ws.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
             lastAck = payload;
+            if (payload.cmd === 'hello') {
+              setStatus('Connected', true);
+            }
             if (els.ackInLogChk.checked) {
               addLog({
                 point: payload.point || 'ESP32',
@@ -679,7 +737,56 @@ input[type="file"]::file-selector-button:hover {
       }
     }
 
+    function stopBarChartContinuousPlayback(sendStop = false) {
+      if (barPlaybackTimer) {
+        clearTimeout(barPlaybackTimer);
+        barPlaybackTimer = null;
+      }
+      if (sendStop) {
+        sendWS({ cmd: 'stop' });
+      }
+    }
+
+    function scheduleBarChartContinuousPlayback(barData, config) {
+      stopBarChartContinuousPlayback(false);
+      currentBarData = [...barData];
+      currentBarConfig = { ...config };
+
+      const loop = () => {
+        if (!currentBarData.length || !currentBarConfig) return;
+        const connected = ws && ws.readyState === WebSocket.OPEN;
+        if (!connected) {
+          barPlaybackTimer = setTimeout(loop, 1500);
+          return;
+        }
+
+        const commands = currentBarData.map(d => buildPlayCommand(d, currentBarConfig));
+        commands.forEach(cmd => sendWS(cmd));
+
+        addLog({
+          point: 'BAR_CHART_LOOP',
+          visual: `${currentBarConfig.xCol}/${currentBarConfig.yCol}`,
+          haptic: `${currentBarConfig.hapticCol} → continuous parallel`,
+          level: `${commands.length} motors`,
+          command: JSON.stringify(commands),
+          status: 'loop sent'
+        });
+
+        const maxDuration = Math.max(...commands.map(cmd => Number(cmd.value) || 0), 0);
+        const loopDelay = Math.max(120, maxDuration + 40);
+        barPlaybackTimer = setTimeout(loop, loopDelay);
+      };
+
+      loop();
+    }
+
     function disconnectWebSocket() {
+      manualDisconnect = true;
+      stopBarChartContinuousPlayback(true);
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
       if (ws) {
         ws.close();
         ws = null;
@@ -688,9 +795,9 @@ input[type="file"]::file-selector-button:hover {
     }
 
     function sendWS(obj) {
-      const text = JSON.stringify(obj);
+      const payload = JSON.stringify(obj);
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(text);
+        ws.send(payload);
         return true;
       }
       return false;
@@ -709,6 +816,7 @@ input[type="file"]::file-selector-button:hover {
         numericColumns.forEach(col => { out[col] = +d[col]; });
         return out;
       });
+      rawData.columns = columns;
       els.datasetInfo.textContent = `${rawData.length} ${t('records')}`;
       populateControls(columns);
       applyMappings();
@@ -716,13 +824,23 @@ input[type="file"]::file-selector-button:hover {
 
     function populateControls(columns) {
       const numeric = numericColumns;
+      const categorical = categoricalColumns;
       const colorCandidates = [t('none'), ...columns];
       const sizeCandidates = [t('fixed'), ...numeric];
+      const chartType = els.chartTypeSelect.value;
 
-      fillSelect(els.xSelect, numeric, numeric[0]);
-      fillSelect(els.ySelect, numeric, numeric[1] || numeric[0]);
-      fillSelect(els.colorSelect, colorCandidates, categoricalColumns[0] || numeric[2] || t('none'));
-      fillSelect(els.sizeSelect, sizeCandidates, numeric[2] || t('fixed'));
+      if (chartType === 'bar') {
+        fillSelect(els.xSelect, categorical.length ? categorical : columns, categorical[1] || categorical[0] || columns[0]);
+        fillSelect(els.ySelect, numeric, numeric[2] || numeric[0]);
+        fillSelect(els.colorSelect, colorCandidates, categorical[0] || t('none'));
+        fillSelect(els.sizeSelect, sizeCandidates, t('fixed'));
+      } else {
+        fillSelect(els.xSelect, numeric, numeric[0]);
+        fillSelect(els.ySelect, numeric, numeric[1] || numeric[0]);
+        fillSelect(els.colorSelect, colorCandidates, categorical[0] || numeric[2] || t('none'));
+        fillSelect(els.sizeSelect, sizeCandidates, numeric[2] || t('fixed'));
+      }
+
       fillSelect(els.hapticVarSelect, numeric, numeric[3] || numeric[0]);
     }
 
@@ -844,7 +962,7 @@ input[type="file"]::file-selector-button:hover {
     }
 
     function getColorScale(data, col) {
-      if (!col || col === '(nenhuma)') return () => '#4f81bd';
+      if (!col || col === t('none')) return () => '#4f81bd';
       if (numericColumns.includes(col)) {
         const extent = d3.extent(data, d => d[col]);
         return d3.scaleSequential(d3.interpolateTurbo).domain(extent);
@@ -854,7 +972,7 @@ input[type="file"]::file-selector-button:hover {
     }
 
     function getSizeScale(data, col) {
-      if (!col || col === '(fixo)') return () => 6;
+      if (!col || col === t('fixed')) return () => 6;
       const extent = d3.extent(data, d => d[col]);
       return d3.scaleSqrt().domain(extent).range([4, 14]);
     }
@@ -862,6 +980,7 @@ input[type="file"]::file-selector-button:hover {
     function applyMappings() {
       if (!rawData.length) return;
       try {
+        const chartType = els.chartTypeSelect.value;
         const xCol = els.xSelect.value;
         const yCol = els.ySelect.value;
         const colorCol = els.colorSelect.value;
@@ -873,18 +992,26 @@ input[type="file"]::file-selector-button:hover {
         const hapticValues = rawData.map(d => d[hapticCol]);
         currentBins = computeBins(hapticValues, method, levels, els.manualThresholds.value);
 
-        rawData.forEach(d => {
+        rawData.forEach((d, idx) => {
           d.__hapticLevel = mapValueToLevel(d[hapticCol], currentBins);
           d.__hapticDuration = currentScaleValues[d.__hapticLevel - 1];
+          d.__motor = chartType === 'scatter' ? 0 : (idx % 8);
         });
 
-        renderChart({ xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
+        renderChart({ chartType, xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
         renderLegend(hapticCol, levels, method);
-        renderMappingSummary({ xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
+        renderMappingSummary({ chartType, xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
         if (selectedDatum) {
           const match = rawData.find(d => d.__index === selectedDatum.__index);
           selectedDatum = match || null;
-          if (selectedDatum) renderSelectedDetails(selectedDatum, { xCol, yCol, colorCol, sizeCol, hapticCol });
+          if (selectedDatum && chartType !== 'bar') renderSelectedDetails(selectedDatum, { chartType, xCol, yCol, colorCol, sizeCol, hapticCol });
+        }
+
+        if (chartType === 'bar' && currentBarData.length) {
+          playBarChartParallel(currentBarData, { chartType, xCol, yCol, colorCol, sizeCol, hapticCol, levels, method });
+        } else {
+          stopBarChartContinuousPlayback(true);
+          currentBarConfig = null;
         }
       } catch (err) {
         alert(`${t('errorApplying')} ${err.message}`);
@@ -892,7 +1019,15 @@ input[type="file"]::file-selector-button:hover {
     }
 
     function renderChart(config) {
-      const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      if (config.chartType === 'bar') {
+        renderBarChart(config);
+      } else {
+        renderScatterChart(config);
+      }
+    }
+
+    function renderScatterChart(config) {
+      const { xCol, yCol, colorCol, sizeCol } = config;
       const svg = d3.select('#chart');
       svg.selectAll('*').remove();
       const width = els.chart.clientWidth || 900;
@@ -935,7 +1070,7 @@ input[type="file"]::file-selector-button:hover {
         .attr('cx', d => xScale(d[xCol]))
         .attr('cy', d => yScale(d[yCol]))
         .attr('r', d => sizeScale(d[sizeCol]))
-        .attr('fill', d => colorCol === '(nenhuma)' ? '#4f81bd' : colorScale(d[colorCol]))
+        .attr('fill', d => colorCol === t('none') ? '#4f81bd' : colorScale(d[colorCol]))
         .on('mousemove', (event, d) => showTooltip(event, d, config))
         .on('mouseleave', hideTooltip)
         .on('click', (event, d) => handlePointClick(d, config));
@@ -945,18 +1080,136 @@ input[type="file"]::file-selector-button:hover {
       }
     }
 
+    function renderBarChart(config) {
+      const { yCol, hapticCol, levels } = config;
+      const svg = d3.select('#chart');
+      svg.selectAll('*').remove();
+      const width = els.chart.clientWidth || 900;
+      const height = 560;
+      svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+      const margin = { top: 46, right: 24, bottom: 90, left: 70 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+
+      const regionKey = rawData.columns?.includes('region') ? 'region' : (rawData[0] && Object.keys(rawData[0]).find(k => k.toLowerCase() === 'region'));
+      const aggregateMetric = (values, key) => {
+        const nums = values.map(v => +v[key]).filter(v => Number.isFinite(v));
+        if (!nums.length) return null;
+        const keyName = String(key).toLowerCase();
+        const useSum = ['wildfires', 'fire_outbreaks', 'fires', 'outbreaks'].includes(keyName);
+        return useSum ? d3.sum(nums) : d3.mean(nums);
+      };
+
+      let barData;
+      if (regionKey) {
+        const groups = d3.groups(rawData, d => d[regionKey]);
+        barData = groups.map(([region, values], i) => {
+          const aggregatedY = aggregateMetric(values, yCol);
+          const aggregatedH = aggregateMetric(values, hapticCol);
+          return {
+            __index: i,
+            __motor: i,
+            __aggregated: true,
+            __count: values.length,
+            region,
+            state: region,
+            [regionKey]: region,
+            [yCol]: aggregatedY,
+            [hapticCol]: aggregatedH,
+            primary_care: aggregateMetric(values, 'primary_care'),
+            sanitation: aggregateMetric(values, 'sanitation'),
+            pm25: aggregateMetric(values, 'pm25'),
+            hospitalizations: aggregateMetric(values, 'hospitalizations'),
+            wildfires: aggregateMetric(values, 'wildfires'),
+            life_expectancy: aggregateMetric(values, 'life_expectancy')
+          };
+        }).filter(d => Number.isFinite(d[yCol]) && Number.isFinite(d[hapticCol]));
+
+        const aggregatedHapticValues = barData.map(d => d[hapticCol]).filter(v => Number.isFinite(v));
+        const aggregatedBins = computeBins(aggregatedHapticValues, els.methodSelect.value, levels, els.manualThresholds.value);
+        const aggregatedScaleValues = durationScales[levels];
+        barData.forEach(d => {
+          d.__hapticLevel = mapValueToLevel(d[hapticCol], aggregatedBins);
+          d.__hapticDuration = aggregatedScaleValues[d.__hapticLevel - 1];
+        });
+      } else {
+        barData = [...rawData]
+          .sort((a, b) => d3.descending(a[yCol], b[yCol]))
+          .slice(0, levels)
+          .map((d, i) => ({ ...d, __motor: i }));
+      }
+
+      const xKey = regionKey || config.xCol;
+      const fillKey = regionKey || config.colorCol;
+      barData = barData
+        .sort((a, b) => d3.descending(a[yCol], b[yCol]))
+        .map((d, i) => ({ ...d, __motor: i }));
+      currentBarData = barData;
+
+      const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+      const xScale = d3.scaleBand().domain(barData.map(d => d[xKey])).range([0, innerW]).padding(0.2);
+      const yScale = d3.scaleLinear().domain([0, d3.max(barData, d => d[yCol])]).nice().range([innerH, 0]);
+      const colorScale = getColorScale(barData, fillKey);
+
+      g.append('g')
+        .attr('transform', `translate(0,${innerH})`)
+        .call(d3.axisBottom(xScale))
+        .call(g => g.selectAll('text').attr('transform', 'rotate(-25)').style('text-anchor', 'end'))
+        .call(g => g.selectAll('line').attr('stroke', '#cfd9e6'))
+        .call(g => g.selectAll('path').attr('stroke', '#aebdd0'));
+
+      g.append('g')
+        .call(d3.axisLeft(yScale).ticks(8))
+        .call(g => g.selectAll('line').attr('stroke', '#cfd9e6'))
+        .call(g => g.selectAll('path').attr('stroke', '#aebdd0'));
+
+      svg.append('text').attr('class', 'plot-title').attr('x', width / 2).attr('y', 24).attr('text-anchor', 'middle')
+        .text(regionKey ? `${t('barchart')}: region × ${yCol} (aggregated, zero-based motors)` : `${t('barchart')}: ${config.xCol} × ${yCol}`);
+      svg.append('text').attr('class', 'axis-label').attr('x', width / 2).attr('y', height - 10).attr('text-anchor', 'middle')
+        .text(regionKey ? t('axisLabelX', 'region') : t('axisLabelX', config.xCol));
+      svg.append('text').attr('class', 'axis-label').attr('transform', `translate(16,${height / 2}) rotate(-90)`).attr('text-anchor', 'middle')
+        .text(t('axisLabelY', yCol));
+
+      g.selectAll('.bar-mark')
+        .data(barData, d => `${d[xKey]}-${d.__motor || d.__index}`)
+        .enter()
+        .append('rect')
+        .attr('class', 'bar-mark')
+        .attr('x', d => xScale(d[xKey]))
+        .attr('y', d => yScale(d[yCol]))
+        .attr('width', xScale.bandwidth())
+        .attr('height', d => innerH - yScale(d[yCol]))
+        .attr('fill', d => colorScale(d[fillKey]))
+        .on('mousemove', (event, d) => showTooltip(event, d, { ...config, xCol: xKey, colorCol: fillKey }))
+        .on('mouseleave', hideTooltip)
+        .on('click', (event, d) => handlePointClick(d, { ...config, xCol: xKey, colorCol: fillKey }));
+
+      if (selectedDatum) {
+        g.selectAll('.bar-mark').classed('selected', d => {
+          const selectedKey = selectedDatum[xKey] || selectedDatum.region || selectedDatum.state;
+          return (d[xKey] || d.region || d.state) === selectedKey;
+        });
+      }
+    }
+
     function showTooltip(event, d, config) {
-      const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      const { chartType, xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      const name = d.state || d.label || d.id || (t('pointFallback', d.__index));
+      const xLine = chartType === 'bar' ? `${xCol}: ${d[xCol]}<br>` : `${xCol}: ${formatNum(d[xCol])}<br>`;
+      const sizeLine = chartType === 'scatter' && sizeCol !== t('fixed') ? `${sizeCol}: ${formatNum(d[sizeCol])}<br>` : '';
+      const motorLine = Number.isInteger(d.__motor) ? `Motor: ${d.__motor}<br>` : ''; 
       els.tooltip.style.display = 'block';
       els.tooltip.style.left = `${event.clientX + 12}px`;
       els.tooltip.style.top = `${event.clientY + 12}px`;
       els.tooltip.innerHTML = `
-        <strong>${d.state || d.label || d.id || (t('pointFallback', d.__index))}</strong><br>
-        ${xCol}: ${formatNum(d[xCol])}<br>
+        <strong>${name}</strong><br>
+        ${xLine}
         ${yCol}: ${formatNum(d[yCol])}<br>
         ${colorCol !== t('none') ? `${colorCol}: ${d[colorCol]}<br>` : ''}
-        ${sizeCol !== t('fixed') ? `${sizeCol}: ${formatNum(d[sizeCol])}<br>` : ''}
+        ${sizeLine}
         ${hapticCol}: ${formatNum(d[hapticCol])}<br>
+        ${motorLine}
         ${t('tooltipLevel')}: ${d.__hapticLevel} → ${d.__hapticDuration} ms
       `;
     }
@@ -966,17 +1219,18 @@ input[type="file"]::file-selector-button:hover {
     }
 
     function renderSelectedDetails(d, config) {
-      const { xCol, yCol, colorCol, sizeCol, hapticCol } = config;
+      const { chartType, xCol, yCol, colorCol, sizeCol, hapticCol } = config;
       const rows = [
         [d.state || d.label || d.id || t('pointFallback', d.__index), t('identifier')],
-        [formatNum(d[xCol]), xCol],
+        [chartType === 'bar' ? String(d[xCol]) : formatNum(d[xCol]), xCol],
         [formatNum(d[yCol]), yCol],
         [colorCol !== t('none') ? String(d[colorCol]) : '—', `${t('color')}: ${colorCol}`],
-        [sizeCol !== t('fixed') ? formatNum(d[sizeCol]) : t('fixedLower'), `${t('size')}: ${sizeCol}`],
+        [chartType === 'scatter' && sizeCol !== t('fixed') ? formatNum(d[sizeCol]) : t('fixedLower'), `${t('size')}: ${sizeCol}`],
         [formatNum(d[hapticCol]), hapticCol],
         [`${t('hapticLevel')} ${d.__hapticLevel}`, t('hapticLevel')],
         [`${d.__hapticDuration} ms`, t('sentPattern')]
       ];
+      if (Number.isInteger(d.__motor)) rows.splice(5, 0, [String(d.__motor), 'Motor']);
       els.selectedDetails.innerHTML = rows.map(([value, label]) => `
         <div class="detail-row"><span>${label}</span><span>${value}</span></div>
       `).join('');
@@ -993,10 +1247,21 @@ input[type="file"]::file-selector-button:hover {
     }
 
     function renderMappingSummary(cfg) {
+      const chartLine = cfg.chartType === 'bar'
+        ? `<div><strong>Chart</strong>: ${t('barchart')} (5 aggregated regional bars / 5 motors)</div>`
+        : `<div><strong>Chart</strong>: ${t('scatterplot')}</div>`;
+      const visualLine = cfg.chartType === 'bar'
+        ? `<div style="margin-top:6px;"><strong>${t('visualWord')}</strong>: X = region; Y = ${cfg.yCol}; ${t('color')} = region</div>`
+        : `<div style="margin-top:6px;"><strong>${t('visualWord')}</strong>: X = ${cfg.xCol}; Y = ${cfg.yCol}; ${t('color')} = ${cfg.colorCol}; ${t('size')} = ${cfg.sizeCol}</div>`;
+      const noteLine = cfg.chartType === 'bar'
+        ? `<div style="margin-top:6px;"><strong>Note</strong>: The bar chart aggregates the selected variables by region, producing five bars and one motor per region.</div>`
+        : '';
       els.mappingSummary.innerHTML = `
-        <div><strong>${t('visualWord')}</strong>: X = ${cfg.xCol}; Y = ${cfg.yCol}; ${t('color')} = ${cfg.colorCol}; ${t('size')} = ${cfg.sizeCol}</div>
+        ${chartLine}
+        ${visualLine}
         <div style="margin-top:6px;"><strong>${t('hapticWord')}</strong>: ${t('variable')} = ${cfg.hapticCol}; ${t('encoding')} = ${t('duration').toLowerCase()}; ${t('levels')} = ${cfg.levels}; ${t('dataMethod')} = ${methodLabel(cfg.method)}</div>
         <div style="margin-top:6px;"><strong>${t('vibrotactileScale')}</strong>: ${durationScales[cfg.levels].join(', ')} ms</div>
+        ${noteLine}
       `;
     }
 
@@ -1011,34 +1276,107 @@ input[type="file"]::file-selector-button:hover {
       }[method] || method;
     }
 
-    function handlePointClick(d, config) {
-      selectedDatum = d;
-      renderChart(config);
-      renderSelectedDetails(d, config);
 
-      const command = {
+    function buildPlayCommand(d, config) {
+      const motor = config.chartType === 'scatter'
+        ? 0
+        : (Number.isInteger(d.__motor) ? d.__motor : (d.__index % 8));
+
+      return {
         cmd: 'play',
+        motor,
         dim: els.hapticEncodingSelect.value,
-        level: d.__hapticLevel,
-        value: d.__hapticDuration,
+        level: Number.isFinite(d.__hapticLevel) ? d.__hapticLevel : 1,
+        value: Number.isFinite(d.__hapticDuration) ? d.__hapticDuration : durationScales[+els.levelsSelect.value][0],
         point: d.state || d.label || d.id || `point_${d.__index}`,
         raw: d[config.hapticCol],
         variable: config.hapticCol,
         method: els.methodSelect.value,
         levels: +els.levelsSelect.value
       };
+    }
 
+    function playBarChartParallel(barData, config) {
+      currentBarData = [...barData];
+      currentBarConfig = { ...config };
+      if (!barData.length) return;
+
+      const connected = ws && ws.readyState === WebSocket.OPEN;
+      if (!connected) {
+        addLog({
+          point: 'UI',
+          visual: `${config.xCol}/${config.yCol}`,
+          haptic: config.hapticCol,
+          level: '-',
+          command: 'bar chart autoplay skipped',
+          status: t('notConnected')
+        });
+        return;
+      }
+
+      stopBarChartContinuousPlayback(false);
+      const commands = barData.map(d => buildPlayCommand(d, config));
+      commands.forEach(cmd => sendWS(cmd));
+
+      addLog({
+        point: 'BAR_CHART_AUTO',
+        visual: `${config.xCol}/${config.yCol}`,
+        haptic: `${config.hapticCol} → continuous parallel`,
+        level: `${commands.length} motors`,
+        command: JSON.stringify(commands),
+        status: 'parallel start'
+      });
+
+      scheduleBarChartContinuousPlayback(barData, config);
+
+      const first = barData[0];
+      if (first) {
+        selectedDatum = first;
+        renderSelectedDetails(first, config);
+      }
+    }
+
+    function handlePointClick(d, config) {
+      selectedDatum = d;
+      renderChart(config);
+      renderSelectedDetails(d, config);
+
+      if (config.chartType === 'bar') {
+        addLog({
+          point: d.state || d.label || d.id || `point_${d.__index}`,
+          visual: `${config.xCol}/${config.yCol} [motor ${Number.isInteger(d.__motor) ? d.__motor : '-'}]`,
+          haptic: `${config.hapticCol}=${formatNum(d[config.hapticCol])}`,
+          level: `${d.__hapticLevel} (${d.__hapticDuration} ms)`,
+          command: 'selection only; parallel playback is automatic in bar chart',
+          status: 'selected'
+        });
+        return;
+      }
+
+      const command = buildPlayCommand(d, config);
       let status = t('visualOnly');
+
       if (els.sendOnClickChk.checked) {
-        status = sendWS(command) ? t('sent') : t('notConnected');
+        const connected = ws && ws.readyState === WebSocket.OPEN;
+        if (connected) {
+          sendWS({ cmd: 'stop' });
+          setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              sendWS(command);
+            }
+          }, 50);
+          status = 'stop → play sent';
+        } else {
+          status = t('notConnected');
+        }
       }
 
       addLog({
         point: command.point,
-        visual: `${config.xCol}/${config.yCol}`,
+        visual: `${config.xCol}/${config.yCol} [motor ${command.motor}]`,
         haptic: `${config.hapticCol}=${formatNum(command.raw)}`,
         level: `${command.level} (${command.value} ms)`,
-        command: JSON.stringify(command),
+        command: `${JSON.stringify({ cmd: 'stop' })} then ${JSON.stringify(command)}`,
         status
       });
     }
@@ -1101,6 +1439,7 @@ input[type="file"]::file-selector-button:hover {
 
     async function loadDefaultCsv() {
       const data = await d3.csv('./sprint4_data.csv');
+      if (els.fileName) els.fileName.textContent = 'sprint4_data.csv';
       parseData(data);
     }
 
@@ -1114,6 +1453,13 @@ input[type="file"]::file-selector-button:hover {
       reader.readAsText(file);
     }
 
+
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        sendWS({ cmd: 'ping' });
+      }
+    }, 5000);
+
     els.connectBtn.addEventListener('click', connectWebSocket);
     els.disconnectBtn.addEventListener('click', disconnectWebSocket);
     els.pingBtn.addEventListener('click', () => {
@@ -1121,19 +1467,22 @@ input[type="file"]::file-selector-button:hover {
       addLog({ point: 'UI', visual: '-', haptic: 'ping', level: '-', command: '{"cmd":"ping"}', status: ok ? t('sent') : t('notConnected') });
     });
     els.stopBtn.addEventListener('click', () => {
+      stopBarChartContinuousPlayback(false);
+      currentBarConfig = null;
       const ok = sendWS({ cmd: 'stop' });
       addLog({ point: 'UI', visual: '-', haptic: 'stop', level: '-', command: '{"cmd":"stop"}', status: ok ? t('sent') : t('notConnected') });
     });
     els.loadDefaultBtn.addEventListener('click', loadDefaultCsv);
     els.csvFile.addEventListener('change', (e) => {
-      if (e.target.files?.[0]) loadLocalCsv(e.target.files[0]);
+      if (e.target.files?.[0]) { els.fileName.textContent = e.target.files[0].name; loadLocalCsv(e.target.files[0]); }
     });
     els.applyBtn.addEventListener('click', applyMappings);
     els.exportLogBtn.addEventListener('click', exportLogCsv);
     els.clearLogBtn.addEventListener('click', () => { logs = []; renderLog(); });
 
-    ['xSelect','ySelect','colorSelect','sizeSelect','hapticVarSelect','levelsSelect','methodSelect'].forEach(id => {
+    ['chartTypeSelect','xSelect','ySelect','colorSelect','sizeSelect','hapticVarSelect','levelsSelect','methodSelect'].forEach(id => {
       document.getElementById(id).addEventListener('change', () => {
+        if (id === 'chartTypeSelect') { populateControls(rawData.columns || Object.keys(rawData[0] || {}).filter(k => !k.startsWith('__'))); }
         if (id !== 'methodSelect' || els.methodSelect.value !== 'manual') applyMappings();
       });
     });
