@@ -375,6 +375,7 @@ input[type="file"]::file-selector-button:hover {
         </div>
         <span class="chip" id="datasetInfo">0 records</span>
         <button id="exportLogBtn">Export Interaction Log</button>
+        <button id="exportSvgBtn">Export Chart as SVG</button>
         <button id="clearLogBtn">Clear log</button>
       </div>
 
@@ -479,6 +480,7 @@ input[type="file"]::file-selector-button:hover {
       mappingSummary: document.getElementById('mappingSummary'),
       logBody: document.getElementById('logBody'),
       exportLogBtn: document.getElementById('exportLogBtn'),
+      exportSvgBtn: document.getElementById('exportSvgBtn'),
       clearLogBtn: document.getElementById('clearLogBtn'),
       datasetInfo: document.getElementById('datasetInfo')
     };
@@ -1490,6 +1492,40 @@ input[type="file"]::file-selector-button:hover {
     window.addEventListener('resize', () => {
       if (rawData.length) applyMappings();
     });
+
+  function exportChartSvg() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+
+  const clone = svgEl.cloneNode(true);
+
+  if (!clone.getAttribute('xmlns')) {
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
+  if (!clone.getAttribute('xmlns:xlink')) {
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  }
+
+  const serializer = new XMLSerializer();
+  let svgText = serializer.serializeToString(clone);
+
+  if (!svgText.startsWith('<?xml')) {
+    svgText = '<?xml version="1.0" standalone="no"?>\n' + svgText;
+  }
+
+  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'chart.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  URL.revokeObjectURL(url);
+}
+els.exportSvgBtn.addEventListener('click', exportChartSvg);
 
     applyLanguage();
     loadDefaultCsv();
